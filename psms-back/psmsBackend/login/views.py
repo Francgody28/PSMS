@@ -226,66 +226,58 @@ def update_user(request, user_id):
     
     try:
         user = User.objects.get(id=user_id)
-        
-        # Get data from request with fallbacks to current values
         data = request.data
+
+        # Use new value if provided, else keep old value
         username = data.get('username', '').strip() or user.username
         email = data.get('email', '').strip() or user.email
         password = data.get('password', '').strip()
-        
+        role = data.get('role', '').strip() or (user.profile.role if hasattr(user, 'profile') else '')
+
         # Validation: Check if username already exists (excluding current user)
         if username != user.username and User.objects.filter(username=username).exists():
-            return Response({
-                'error': 'Username already exists'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
         # Validation: Check if email already exists (excluding current user)
         if email != user.email and User.objects.filter(email=email).exists():
-            return Response({
-                'error': 'Email already exists'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
         # Validation: Email format
         import re
         email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
         if not re.match(email_pattern, email):
-            return Response({
-                'error': 'Invalid email format'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'error': 'Invalid email format'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Update user fields
         user.username = username
         user.email = email
-        
+
         # Update password only if provided
         if password:
             if len(password) < 8:
-                return Response({
-                    'error': 'Password must be at least 8 characters long'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Password must be at least 8 characters long'}, status=status.HTTP_400_BAD_REQUEST)
             user.set_password(password)
-        
         user.save()
-        
+
+        # Update role in UserProfile if provided
+        if hasattr(user, 'profile') and role:
+            user.profile.role = role
+            user.profile.save()
+
         return Response({
             'message': f'User {user.username} updated successfully',
             'user': {
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
+                'role': user.profile.role if hasattr(user, 'profile') else '',
                 'is_active': user.is_active,
                 'is_admin': user.is_staff or user.is_superuser
             }
         }, status=status.HTTP_200_OK)
     
     except User.DoesNotExist:
-        return Response({
-            'error': 'User not found'
-        }, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        return Response({
-            'error': f'Error updating user: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': f'Error updating user: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])

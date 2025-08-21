@@ -4,6 +4,13 @@ from django.utils import timezone
 
 class UserProfile(models.Model):
     """Extended user profile information"""
+    ROLE_CHOICES = [
+        ('planning_officer', 'Planning Officer'),
+        ('statistics_officer', 'Statistics Officer'),
+        ('head_of_division', 'Head of Division'),
+        ('head_of_department', 'Head of Department'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
@@ -13,7 +20,8 @@ class UserProfile(models.Model):
     employee_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+    role = models.CharField(max_length=32, default='planning_officer', choices=ROLE_CHOICES)
+
     def __str__(self):
         return f"{self.user.username}'s Profile"
     

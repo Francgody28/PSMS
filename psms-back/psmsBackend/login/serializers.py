@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from .models import UserProfile  # If you have a profile model
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
@@ -9,10 +10,11 @@ class LoginSerializer(serializers.Serializer):
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
+    role = serializers.CharField(required=True)  # Add this line
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'password', 'password_confirm']
+        fields = ['username', 'email', 'first_name', 'last_name', 'password', 'password_confirm', 'role']
     
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
@@ -22,9 +24,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
+        role = validated_data.pop('role')
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
         user.save()
+        # Save role to profile or custom user model
+        UserProfile.objects.create(user=user, role=role)
         return user
 
 class UserSerializer(serializers.ModelSerializer):
