@@ -215,10 +215,10 @@ def update_user_status(request, user_id):
             'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)
 
-@api_view(['DELETE'])
+@api_view(['PUT'])
 @permission_classes([IsAuthenticated])
-def delete_user(request, user_id):
-    """Admin endpoint to delete users"""
+def update_user(request, user_id):
+    """Admin endpoint to update user information"""
     if not (request.user.is_staff or request.user.is_superuser):
         return Response({
             'error': 'Access denied. Admin privileges required.'
@@ -226,10 +226,84 @@ def delete_user(request, user_id):
     
     try:
         user = User.objects.get(id=user_id)
-        if user.is_superuser:
+        
+        # Get data from request with fallbacks to current values
+        data = request.data
+        username = data.get('username', '').strip() or user.username
+        email = data.get('email', '').strip() or user.email
+        password = data.get('password', '').strip()
+        
+        # Validation: Check if username already exists (excluding current user)
+        if username != user.username and User.objects.filter(username=username).exists():
             return Response({
-                'error': 'Cannot delete superuser'
-            }, status=status.HTTP_403_FORBIDDEN)
+                'error': 'Username already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validation: Check if email already exists (excluding current user)
+        if email != user.email and User.objects.filter(email=email).exists():
+            return Response({
+                'error': 'Email already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validation: Email format
+        import re
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_pattern, email):
+            return Response({
+                'error': 'Invalid email format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update user fields
+        user.username = username
+        user.email = email
+        
+        # Update password only if provided
+        if password:
+            if len(password) < 8:
+                return Response({
+                    'error': 'Password must be at least 8 characters long'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(password)
+        
+        user.save()
+        
+        return Response({
+            'message': f'User {user.username} updated successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_active': user.is_active,
+                'is_admin': user.is_staff or user.is_superuser
+            }
+        }, status=status.HTTP_200_OK)
+    
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': f'Error updating user: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_user(request, user_id):
+    """Admin endpoint to delete a user"""
+    if not (request.user.is_staff or request.user.is_superuser):
+        return Response({
+            'error': 'Access denied. Admin privileges required.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        
+        # Prevent deletion of the requesting admin
+        if user.id == request.user.id:
+            return Response({
+                'error': 'You cannot delete your own account'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         username = user.username
         user.delete()
@@ -242,6 +316,10 @@ def delete_user(request, user_id):
         return Response({
             'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': f'Error deleting user: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
