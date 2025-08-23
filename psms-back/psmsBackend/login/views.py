@@ -102,25 +102,19 @@ def user_dashboard(request):
             'error': 'Access denied. This is for regular users only.'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    user_data = {
-        'user_info': {
-            'id': request.user.id,
-            'username': request.user.username,
-            'email': request.user.email,
-            'first_name': request.user.first_name,
-            'last_name': request.user.last_name,
-            'date_joined': request.user.date_joined,
-        },
-        'dashboard_type': 'user',
-        'available_features': [
-            'View Profile',
-            'Update Profile',
-            'View History',
-            'Settings'
-        ]
+    user = request.user
+    user_info = {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': getattr(getattr(user, 'profile', None), 'role', '')  # ensure role is returned
     }
-    
-    return Response(user_data, status=status.HTTP_200_OK)
+    return Response({'user_info': user_info, 'dashboard_type': 'user', 'available_features': [
+        'View Profile',
+        'Update Profile',
+        'View History',
+        'Settings'
+    ]}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -140,12 +134,11 @@ def admin_dashboard(request):
             'id': user.id,
             'username': user.username,
             'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
             'is_active': user.is_active,
             'is_admin': user.is_staff or user.is_superuser,
             'date_joined': user.date_joined,
-            'last_login': user.last_login
+            'last_login': user.last_login,
+            'role': getattr(getattr(user, 'profile', None), 'role', '')
         })
     
     admin_data = {
